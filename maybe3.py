@@ -439,6 +439,20 @@ brelok_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Частично", callback_data="brelok_sometimes")]
 ])
 
+shop_buttons_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🛍️ Wildberries", callback_data="shop_wb")],
+    [InlineKeyboardButton(text="🛒 Ozon", callback_data="shop_ozon")],
+    [InlineKeyboardButton(text="🌐 Официальный сайт", callback_data="shop_website")],
+    [InlineKeyboardButton(text="📍 Магазины в городах", callback_data="shop_cities")]
+])
+
+cities_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="📍 Новосибирск", callback_data="city_novosibirsk")],
+    [InlineKeyboardButton(text="📍 Томск", callback_data="city_tomsk")],
+    [InlineKeyboardButton(text="📍 Кемерово", callback_data="city_kemerovo")],
+    [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_shops")]
+])
+
 RESTRICTIONS = {
     "restriction_none": "Нет ограничений",
     "restriction_lactose": "Лактоза",
@@ -486,130 +500,6 @@ continue_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Задать вопрос", callback_data="ask_question")]
 ])
 
-'''
-# Или Reply-клавиатура
-reply_continue_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Пройти заново")],
-        [KeyboardButton(text="Консультант"), KeyboardButton(text="Вопрос")]
-    ],
-    resize_keyboard=True
-)
-@dp.message(F.text == "🔄 Пройти заново")
-async def restart_survey(message: Message, state: FSMContext):
-    await cmd_start(message, state)
-
-@dp.callback_query(F.data == "restart")
-async def restart_callback(callback: CallbackQuery, state: FSMContext):
-    await cmd_start(callback.message, state)
-    await callback.answer()
-
-@dp.message(F.text == "Консультант")
-@dp.callback_query(F.data == "consultant")
-async def contact_consultant(callback_or_message, state: FSMContext = None):
-    # Определяем тип объекта
-    if hasattr(callback_or_message, 'message'):  # это CallbackQuery
-        message = callback_or_message.message
-        await callback_or_message.answer()
-    else:  # это Message
-        message = callback_or_message
-    
-    await message.answer(
-        "👋 *Связь с консультантом KULTLAB*\n\n"
-        "Наши специалисты помогут с выбором:\n\n"
-        "📱 *Telegram:* @kultlab_support\n"
-        "📞 *Телефон:* 8 (800) 123-45-67\n"
-        "✉️ *Email:* shop@kultlab.ru\n\n"
-        "Или напишите свой вопрос прямо сейчас — я передам консультанту!",
-        parse_mode="Markdown",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[[KeyboardButton(text="◀️ Назад в меню")]],
-            resize_keyboard=True
-        )
-    )
-    await state.set_state(None) if state else None
-
-@dp.message(F.text == "Вопрос")
-@dp.callback_query(F.data == "ask_question")
-async def ask_question(callback_or_message, state: FSMContext):
-    if hasattr(callback_or_message, 'message'):
-        message = callback_or_message.message
-        await callback_or_message.answer()
-    else:
-        message = callback_or_message
-    
-    await message.answer(
-        "💬 *Задайте свой вопрос*\n\n"
-        "Напишите, что вас интересует:\n"
-        "— про дозировки\n"
-        "— про совместимость продуктов\n"
-        "— про противопоказания\n"
-        "— или что-то ещё\n\n"
-        "Я отвечу как эксперт по KULTLAB!",
-        parse_mode="Markdown",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[[KeyboardButton(text="◀️ Назад в меню")]],
-            resize_keyboard=True
-        )
-    )
-    await state.set_state(SurveyStates.waiting_for_question)
-
-
-@dp.message(SurveyStates.waiting_for_question)
-async def process_question(message: Message, state: FSMContext):
-    user_question = message.text
-    
-    if user_question == "◀️ Назад в меню":
-        await cmd_start(message, state)
-        return
-    
-    # Отправляем вопрос в GigaChat для ответа
-    await message.answer("*Анализирую ваш вопрос...*", parse_mode="Markdown")
-    
-    prompt = f"""
-    Ты - эксперт по спортивному питанию бренда KULTLAB.
-    
-    Вопрос пользователя: {user_question}
-    
-    Ответь кратко, понятно и по делу. Если вопрос про конкретный продукт - уточни, что его можно купить на сайте или WB.
-    Если не знаешь ответа - предложи связаться с консультантом.
-    
-    Ответь на русском, живым языком.
-    """
-    
-    try:
-        messages = [
-            SystemMessage(content="Ты эксперт KULTLAB. Отвечай полезно, кратко, с ссылкой на продукты бренда."),
-            HumanMessage(content=prompt)
-        ]
-        
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(None, lambda: giga.invoke(messages))
-        
-        await message.answer(
-            f"💡 *Ответ эксперта:*\n\n{response.content}\n\n"
-            "Остались вопросы? Просто напиши!\n"
-            "Или выбери действие ниже 👇",
-            parse_mode="Markdown",
-            reply_markup=reply_continue_keyboard
-        )
-    except Exception as e:
-        logger.error(f"Ошибка ответа на вопрос: {e}")
-        await message.answer(
-            "🙏 *Не могу точно ответить на этот вопрос*\n\n"
-            "Рекомендую обратиться к официальному консультанту KULTLAB:\n"
-            "📱 Telegram: @kultlab_support\n\n"
-            "Или задайте вопрос иначе - я постараюсь помочь!",
-            parse_mode="Markdown",
-            reply_markup=reply_continue_keyboard
-        )
-    
-    await state.set_state(None)
-
-@dp.message(F.text == "◀️ Назад в меню")
-async def back_to_menu(message: Message, state: FSMContext):
-    await cmd_start(message, state)'''
-
 # ========== ОБНОВЛЕННАЯ ФУНКЦИЯ finalize_survey ==========
 async def finalize_survey(message: Message, state: FSMContext, deficiencies: str):
     """Завершение опроса с генерацией рекомендаций"""
@@ -650,7 +540,9 @@ async def finalize_survey(message: Message, state: FSMContext, deficiencies: str
     
 
     await message.answer(response_text, parse_mode="Markdown")
+
     # НОВЫЙ ФОРМАТ ОТВЕТА С МАГАЗИНАМИ
+    '''
     shop_info = """
     *👉
     Купить можно здесь:*
@@ -663,7 +555,15 @@ async def finalize_survey(message: Message, state: FSMContext, deficiencies: str
     📍 Адрес магазина в Новосибирске:*
        просп. Карла Маркса, 43
     """
-    await message.answer(shop_info, parse_mode="Markdown")
+    '''
+
+    await message.answer(
+        "🛒 *Где купить:*\n\nВыберите удобный способ покупки:",
+        reply_markup=shop_buttons_keyboard,
+        parse_mode="Markdown"
+    )
+    
+    # await message.answer(shop_info, parse_mode="Markdown")
     await state.clear()
 
 # ========== Обработчики ==========
@@ -891,6 +791,79 @@ async def process_deficiencies_choice(callback: CallbackQuery, state: FSMContext
         deficiencies_text = deficiency_map.get(callback.data, "")
         await finalize_survey(callback.message, state, deficiencies_text)
         await callback.answer()
+
+@dp.callback_query(F.data == "shop_wb")
+async def shop_wb_callback(callback: CallbackQuery):
+    """Обработчик кнопки Wildberries"""
+    wb_url = "https://www.wildberries.ru/brands/kultlab"  # Ваша ссылка на WB магазин
+    await callback.message.answer(
+        f"🛍️ *Перейти в магазин KULTLAB на Wildberries:*\n\n{wb_url}",
+        parse_mode="Markdown",
+        disable_web_page_preview=True
+    )
+    await callback.answer()
+
+@dp.callback_query(F.data == "shop_ozon")
+async def shop_ozon_callback(callback: CallbackQuery):
+    """Обработчик кнопки Ozon"""
+    ozon_url = "https://www.ozon.ru/brand/kultlab-100155610/"  # Ваша ссылка на Ozon магазин
+    await callback.message.answer(
+        f"🛒 *Перейти в магазин KULTLAB на Ozon:*\n\n{ozon_url}",
+        parse_mode="Markdown",
+        disable_web_page_preview=True
+    )
+    await callback.answer()
+
+@dp.callback_query(F.data == "shop_website")
+async def shop_website_callback(callback: CallbackQuery):
+    """Обработчик кнопки официального сайта"""
+    website_url = "https://kultlab.ru/"  # Ваша ссылка на сайт
+    await callback.message.answer(
+        f"🌐 *Официальный сайт KULTLAB:*\n\n{website_url}",
+        parse_mode="Markdown",
+        disable_web_page_preview=True
+    )
+    await callback.answer()
+
+@dp.callback_query(F.data == "shop_cities")
+async def shop_cities_callback(callback: CallbackQuery):
+    """Обработчик кнопки магазины в городах - показывает города"""
+    await callback.message.edit_text(
+        "📍 *Выберите город:*\n\nМагазины KULTLAB в вашем городе:",
+        reply_markup=cities_keyboard,
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+@dp.callback_query(F.data == "back_to_shops")
+async def back_to_shops_callback(callback: CallbackQuery):
+    """Возврат к выбору магазинов"""
+    await callback.message.edit_text(
+        "🛒 *Где купить:*\n\nВыберите удобный способ покупки:",
+        reply_markup=shop_buttons_keyboard,
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+@dp.callback_query(F.data.startswith("city_"))
+async def city_callback(callback: CallbackQuery):
+    """Обработчик выбора города"""
+    city_map = {
+        "city_novosibirsk": ("Новосибирск", "https://example.com/novosibirsk"),  # Замените на реальную ссылку
+        "city_tomsk": ("Томск", "https://example.com/tomsk"),  # Замените на реальную ссылку
+        "city_kemerovo": ("Кемерово", "https://example.com/kemerovo")  # Замените на реальную ссылку
+    }
+    
+    city_name, city_url = city_map.get(callback.data, ("Неизвестно", "#"))
+    
+    await callback.message.answer(
+        f"📍 *Магазин KULTLAB в {city_name}:*\n\n{city_url}\n\n"
+        f"🏪 Адрес: уточняйте на сайте",
+        parse_mode="Markdown",
+        disable_web_page_preview=True
+    )
+    await callback.answer()
+
 
 @dp.message(SurveyStates.deficiencies)
 async def process_deficiencies_text(message: Message, state: FSMContext):
